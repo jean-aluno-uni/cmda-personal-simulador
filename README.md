@@ -4,6 +4,23 @@ Simulador em Python que faz o notebook se comportar como um carro com adaptador 
 
 O simulador percorre em ciclo cenários de melhor e pior caso de cada tela do aplicativo e só para com Ctrl+C.
 
+O passo a passo completo da demonstração, com banco, API, firewall, Bluetooth, simulador e app, está no [roteiro do cmda-personal-mobile](https://github.com/jean-aluno-uni/cmda-personal-mobile#roteiro-completo-da-demonstração).
+
+## Mesmo pacote de dados de um adaptador real
+
+O simulador não usa um protocolo próprio. Ele recebe exatamente os comandos de texto que o app mandaria para um ELM327 encaixado no carro e devolve as respostas no mesmo formato, com o código do modo e do PID, os valores em bytes hexadecimais calculados pelas fórmulas do padrão OBD2 e o caractere `>` no fim de cada resposta. Ele também respeita os comandos de configuração `ATE0` e `ATS0`, que ligam e desligam o eco e os espaços. Por isso o mesmo APK funciona com o simulador ou com um adaptador real.
+
+Exemplo de conversa, com eco e espaços desligados.
+
+```
+app  -> 010C
+sim  -> 410C1AF8>          RPM = (256 x 0x1A + 0xF8) / 4 = 1726
+app  -> 0105
+sim  -> 41055F>            líquido = 0x5F - 40 = 55 °C
+app  -> 03
+sim  -> 43021703010000>    códigos P0217 e P0301
+```
+
 ## Como funciona
 
 ```
