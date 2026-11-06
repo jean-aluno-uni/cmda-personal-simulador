@@ -55,6 +55,7 @@ def modo_bluetooth(porta, ciclo):
             conexao = abrir_porta(porta)
             elm = Elm327()
             buffer = ""
+            atendendo = False
             print(f"porta {porta} aberta, aguardando o aplicativo")
         try:
             buffer += conexao.read(64).decode("ascii", errors="ignore")
@@ -63,6 +64,9 @@ def modo_bluetooth(porta, ciclo):
                 comando = comando.strip()
                 if not comando:
                     continue
+                if not atendendo:
+                    atendendo = True
+                    print(f"aplicativo conectado na {porta}, recebendo comandos")
                 eco = elm.eco
                 if not comando.upper().startswith("AT") and random.random() < cenario.get("sem_resposta", 0):
                     resposta = "NO DATA"
