@@ -6,8 +6,25 @@ import urllib.error
 import urllib.request
 
 from cenarios import CENARIOS, DESCRICAO_DTC, origem_do_dtc, valores_do_cenario
-
 from elm327 import Elm327
+
+CAMPOS = [
+    ("010C", "RPM", lambda v: f"{v['rpm']:>4}"),
+    ("010D", "km/h", lambda v: f"{v['velocidade']:>3}"),
+    ("0105", "líquido °C", lambda v: f"{v['liquido']:>3}"),
+    ("015C", "óleo °C", lambda v: f"{v['oleo']:>3}"),
+    ("010F", "ar °C", lambda v: f"{v['ar']:>3}"),
+    ("0142", "bateria V", lambda v: f"{v['tensao']:>4}".replace(".", ",")),
+]
+
+
+def mostrar_envio(enviados, dtcs):
+    partes = []
+    for comando, rotulo, formato in CAMPOS:
+        valores = enviados.get(comando)
+        partes.append(f"{formato(valores) if valores else ' -- '} {rotulo}")
+    falhas = ", ".join(dtcs) if dtcs else "nenhuma"
+    print(f"[{time.strftime('%H:%M:%S')}] enviado ao app  " + " | ".join(partes) + f" | falhas: {falhas}")
 
 
 class Ciclo:
@@ -67,6 +84,7 @@ def modo_bluetooth(porta, ciclo):
             elm = Elm327()
             buffer = ""
             atendendo = False
+            enviados = {}
             print(f"porta {porta} aberta, aguardando o aplicativo")
         try:
             buffer += conexao.read(64).decode("ascii", errors="ignore")
@@ -79,11 +97,17 @@ def modo_bluetooth(porta, ciclo):
                     atendendo = True
                     print(f"aplicativo conectado na {porta}, recebendo comandos")
                 eco = elm.eco
-                if not comando.upper().startswith("AT") and random.random() < cenario.get("sem_resposta", 0):
+                codigo = comando.upper().replace(" ", "")
+                valores, dtcs = ciclo.valores()
+                if not codigo.startswith("AT") and random.random() < cenario.get("sem_resposta", 0):
                     resposta = "NO DATA"
+                    enviados[codigo] = None
                 else:
-                    valores, dtcs = ciclo.valores()
                     resposta = elm.responder(comando, valores, dtcs)
+                    enviados[codigo] = valores
+                if codigo == "03":
+                    mostrar_envio(enviados, dtcs if enviados[codigo] else [])
+                    enviados = {}
                 time.sleep(cenario.get("atraso", 0))
                 saida = (comando + "\r" if eco else "") + resposta + "\r\r>"
                 conexao.write(saida.encode("ascii"))
@@ -138,6 +162,7 @@ def modo_api(base, email, senha, intervalo, ciclo):
                 conectado = True
             valores, dtcs = ciclo.valores()
             chamar_api(base, f"/vehicles/{veiculo_id}/readings", "POST", leitura_da_api(valores), token)
+            mostrar_envio({comando: valores for comando, _, _ in CAMPOS}, dtcs)
             for codigo in set(dtcs) - dtcs_anteriores:
                 alerta = {
                     "origem": origem_do_dtc(codigo),
