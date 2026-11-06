@@ -33,29 +33,39 @@ Qualquer outro PID responde `NO DATA`, como um adaptador real.
 
 ## Cenários
 
-Cada cenário fica ativo por 20 segundos por padrão, com pequena variação nos valores. O terminal mostra qual cenário está ativo.
+Os cenários contam uma viagem, da partida a frio até a chegada em casa, passando pelos melhores e piores casos de cada tela. Cada cenário dura 25 segundos por padrão. Nos primeiros 60% do tempo os valores mudam aos poucos a partir do cenário anterior, então a temperatura sobe ou desce gradualmente e a velocidade acelera ou freia, e os códigos de falha só aparecem quando o problema já se instalou.
 
-| # | Cenário | Valores principais |
-|---|---|---|
-| 1 | Painel inicial, melhor caso | marcha lenta, temperaturas e bateria normais, sem DTC |
-| 2 | Condições do motor, melhor caso | 2000 RPM, 60 km/h, líquido 90 °C, óleo 95 °C |
-| 3 | Condições do motor, pior caso | líquido 118 °C, óleo 135 °C, ar 55 °C, DTC P0217 |
-| 4 | RPM, melhor caso | 800 RPM estável |
-| 5 | RPM, pior caso | cerca de 6600 RPM oscilando |
-| 6 | Bateria, pior caso | 11,4 V, DTC P0562 |
-| 7 | Bateria, pior caso de sobrecarga | 15,6 V, DTC P0563 |
-| 8 | Velocidade, pior caso | 180 km/h |
-| 9 | Diagnóstico e alertas, pior caso | P0217, P0301, P0562 e P0700 ao mesmo tempo |
-| 10 | Conexão, pior caso instável | 30% de `NO DATA` e respostas atrasadas |
-| 11 | Conexão, pior caso de queda | porta fechada, o app mostra o veículo desconectado |
-| 12 | Diagnóstico e alertas, melhor caso | reconectado e tudo normalizado |
+O RPM é calculado a partir da velocidade e da marcha, como num carro de cinco marchas, então ele sempre combina com a velocidade. Abaixo de 5 km/h o carro está parado em marcha lenta, por isso aparece RPM com velocidade zero.
+
+O terminal mostra o cenário ativo e a tela do app que ele demonstra.
+
+| # | Cenário | Tela demonstrada | O que acontece |
+|---|---|---|---|
+| 1 | Partida a frio | Painel inicial, melhor caso | motor ligado parado, marcha lenta em 1050 RPM, motor aquecendo de 26 °C para 55 °C |
+| 2 | Saindo de casa | Condições do motor, aquecimento | até 35 km/h, motor chega em 88 °C |
+| 3 | Cidade com temperatura ideal | Condições do motor, melhor caso | anda e para entre 30 e 60 km/h, líquido 91 °C e óleo 98 °C |
+| 4 | Parado no semáforo | RPM, melhor caso | freia até parar, marcha lenta em 800 RPM |
+| 5 | Rodovia em velocidade de cruzeiro | Velocidade e RPM, melhor caso | 100 km/h em quinta marcha, cerca de 2600 RPM |
+| 6 | Ultrapassagem com marcha reduzida | Velocidade e RPM, pior caso | 135 km/h em quarta, cerca de 4300 RPM |
+| 7 | Congestionamento com a ventoinha falhando | Condições do motor, pior caso | quase parado, líquido 117 °C, óleo 132 °C, ar 52 °C, P0217 |
+| 8 | Parado no acostamento | Condições do motor, recuperação | marcha lenta enquanto o motor esfria |
+| 9 | Alternador falhando | Bateria, pior caso | tensão cai até 11,4 V, P0562 |
+| 10 | Regulador de tensão com defeito | Bateria, pior caso de sobrecarga | tensão sobe até 15,7 V, P0563 |
+| 11 | Falha de ignição e câmbio patinando | Diagnóstico e alertas, pior caso | RPM alto demais para 40 km/h, P0301 e P0700 |
+| 12 | Conexão instável | Conexão, pior caso | 30% de `NO DATA` e respostas atrasadas |
+| 13 | Adaptador desconectado | Conexão, queda | porta fechada por 10 segundos, o app mostra o veículo desconectado e reconecta sozinho |
+| 14 | Chegando em casa | Diagnóstico e alertas, melhor caso | tudo normalizado e sem códigos de falha |
 
 ## Preparar o Bluetooth no Windows
 
 1. Parear o celular com o notebook nas configurações de Bluetooth.
 2. Abrir Configurações, Bluetooth e dispositivos, Dispositivos, Mais configurações de Bluetooth.
 3. Na aba Portas COM, clicar em Adicionar, escolher Entrada e confirmar.
-4. Anotar o número da porta criada, por exemplo COM5.
+4. Anotar o número da porta criada, por exemplo COM4.
+
+Deixe só uma porta de Entrada na lista. Se houver mais de uma, o celular pode se conectar numa porta em que o simulador não está escutando.
+
+No celular, renomeie o notebook pareado para `OBDII`, em Configurações, Bluetooth, engrenagem ao lado do notebook, Renomear. O app mostra esse nome, igual ao de um adaptador ELM327 real.
 
 ## Rodar
 
@@ -63,10 +73,12 @@ Cada cenário fica ativo por 20 segundos por padrão, com pequena variação nos
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-python simulador.py --porta COM5
+python simulador.py --porta COM4
 ```
+
+Quando o app conecta, o terminal mostra `aplicativo conectado na COM4, recebendo comandos`.
 
 Opções
 
-- `--tempo 10` muda quantos segundos cada cenário dura.
+- `--tempo 15` muda quantos segundos cada cenário dura.
 - `--api http://127.0.0.1:8000/api/v1` liga o modo reserva, que não usa Bluetooth e manda as leituras direto para a API com o usuário `demo@cmda.app`. Serve para a apresentação continuar se o Bluetooth falhar.

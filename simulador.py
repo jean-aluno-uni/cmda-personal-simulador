@@ -6,6 +6,7 @@ import urllib.error
 import urllib.request
 
 from cenarios import CENARIOS, DESCRICAO_DTC, origem_do_dtc, valores_do_cenario
+
 from elm327 import Elm327
 
 
@@ -16,12 +17,22 @@ class Ciclo:
         self.anterior = None
 
     def atual(self):
-        indice = int((time.monotonic() - self.inicio) // self.duracao) % len(CENARIOS)
-        cenario = CENARIOS[indice]
-        if indice != self.anterior:
-            self.anterior = indice
-            print(f"[{time.strftime('%H:%M:%S')}] cenário {indice + 1}/{len(CENARIOS)}  {cenario['nome']}  ({cenario['descricao']})")
+        passado = time.monotonic() - self.inicio
+        self.indice = int(passado // self.duracao) % len(CENARIOS)
+        self.decorrido = passado % self.duracao
+        cenario = CENARIOS[self.indice]
+        if self.indice != self.anterior:
+            self.anterior = self.indice
+            print(f"\n[{time.strftime('%H:%M:%S')}] cenário {self.indice + 1}/{len(CENARIOS)}  {cenario['nome']}")
+            print(f"    tela: {cenario['tela']}")
+            print(f"    {cenario['descricao']}")
         return cenario
+
+    def valores(self):
+        return valores_do_cenario(self.indice, self.decorrido, self.duracao)
+
+    def em_queda(self):
+        return CENARIOS[self.indice].get("queda", False) and self.decorrido < min(10, self.duracao / 2)
 
 
 def abrir_porta(porta):
@@ -44,7 +55,7 @@ def modo_bluetooth(porta, ciclo):
     print(f"simulando um ELM327 na porta {porta}. Ctrl+C para parar")
     while True:
         cenario = ciclo.atual()
-        if cenario.get("queda"):
+        if ciclo.em_queda():
             if conexao is not None:
                 conexao.close()
                 conexao = None
@@ -71,7 +82,8 @@ def modo_bluetooth(porta, ciclo):
                 if not comando.upper().startswith("AT") and random.random() < cenario.get("sem_resposta", 0):
                     resposta = "NO DATA"
                 else:
-                    resposta = elm.responder(comando, valores_do_cenario(cenario), cenario["dtcs"])
+                    valores, dtcs = ciclo.valores()
+                    resposta = elm.responder(comando, valores, dtcs)
                 time.sleep(cenario.get("atraso", 0))
                 saida = (comando + "\r" if eco else "") + resposta + "\r\r>"
                 conexao.write(saida.encode("ascii"))
@@ -114,7 +126,7 @@ def modo_api(base, email, senha, intervalo, ciclo):
     while True:
         cenario = ciclo.atual()
         try:
-            if cenario.get("queda"):
+            if ciclo.em_queda():
                 if conectado:
                     chamar_api(base, f"/vehicles/{veiculo_id}/disconnect", "POST", token=token)
                     conectado = False
@@ -124,8 +136,9 @@ def modo_api(base, email, senha, intervalo, ciclo):
             if not conectado:
                 chamar_api(base, f"/vehicles/{veiculo_id}/connect", "POST", token=token)
                 conectado = True
-            chamar_api(base, f"/vehicles/{veiculo_id}/readings", "POST", leitura_da_api(valores_do_cenario(cenario)), token)
-            for codigo in set(cenario["dtcs"]) - dtcs_anteriores:
+            valores, dtcs = ciclo.valores()
+            chamar_api(base, f"/vehicles/{veiculo_id}/readings", "POST", leitura_da_api(valores), token)
+            for codigo in set(dtcs) - dtcs_anteriores:
                 alerta = {
                     "origem": origem_do_dtc(codigo),
                     "titulo": f"Código de falha {codigo}",
@@ -133,7 +146,7 @@ def modo_api(base, email, senha, intervalo, ciclo):
                     "nivel": "high",
                 }
                 chamar_api(base, f"/vehicles/{veiculo_id}/alerts", "POST", alerta, token)
-            dtcs_anteriores = set(cenario["dtcs"])
+            dtcs_anteriores = set(dtcs)
         except urllib.error.URLError as erro:
             print(f"falha ao falar com a API: {erro}")
         time.sleep(intervalo)
@@ -141,8 +154,8 @@ def modo_api(base, email, senha, intervalo, ciclo):
 
 def main():
     parser = argparse.ArgumentParser(description="Simulador do veículo do CMDA Personal")
-    parser.add_argument("--porta", default="COM5", help="porta COM de entrada do Bluetooth")
-    parser.add_argument("--tempo", type=float, default=20, help="segundos em cada cenário")
+    parser.add_argument("--porta", default="COM4", help="porta COM de entrada do Bluetooth")
+    parser.add_argument("--tempo", type=float, default=25, help="segundos em cada cenário")
     parser.add_argument("--api", help="endereço da API para o modo reserva, ex http://127.0.0.1:8000/api/v1")
     parser.add_argument("--email", default="demo@cmda.app")
     parser.add_argument("--senha", default="Demo@1234")
